@@ -11,11 +11,12 @@ class Config:
         'host': 'localhost',
         'port': 27017
     }
+
+    GOOGLE_CREDENTIALS_PATH = os.getenv('GOOGLE_APPLICATION_CREDENTIALS', '')
+    GOOGLE_SPREADSHEET_ID = os.getenv('GOOGLE_SPREADSHEET_ID', '')
     GOOGLE_SHEETS_SCOPES = [
         "https://www.googleapis.com/auth/spreadsheets",
     ]
-    GOOGLE_CREDENTIALS_PATH = os.getenv('GOOGLE_APPLICATION_CREDENTIALS', '')
-    GOOGLE_SPREADSHEET_ID = os.getenv('GOOGLE_SPREADSHEET_ID', '')
 
 class DevelopmentConfig(Config):
     DEBUG = True

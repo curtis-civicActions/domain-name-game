@@ -24,5 +24,5 @@ htmlcov/
 .vscode/
 
 # Credentials
-gemecreds.json
+game-data-creds.json
 

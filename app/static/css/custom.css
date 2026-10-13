@@ -104,6 +104,24 @@ input:checked + .slider:before {
   content: "url";
 }
 
+/* Styling for the loading container */
+#loading-container {
+  display: none;
+  width: 40%;
+  margin: 20px;
+  background-color: #f3f3f3;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+/* Animated loading bar */
+#loading-bar {
+  width: 0%;
+  height: 20px;
+  background-color: #ef4444;
+  transition: width 0.4s ease
+}
 .logo {
     height: 100%;
 }

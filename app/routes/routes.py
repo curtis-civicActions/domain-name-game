@@ -1,5 +1,5 @@
 import os
-from flask import Blueprint
+from flask import Blueprint, jsonify
 from flask import render_template
 from app.services.datagenerator import DataGenerator
 from app.services.datamanager import DataManager
@@ -21,6 +21,10 @@ def about():
 def start():
     return render_template("pages/start.html", is_active=toggle_state["active"])
 
+@bp.route("/gather/data")
+def gather_data():
+    return render_template('pages/gather.html')
+
 @bp.route("/get-partial/question/<view_name>")
 def get_partial(view_name):
     datamanager = DataManager()
@@ -33,4 +37,8 @@ def get_partial(view_name):
 def fetch_data():
     data_generator = DataGenerator()
     data_to_display = data_generator.generate_data("external", True)
-    return render_template('pages/datadisplay.html', data=data_to_display)
+    #return render_template('pages/datadisplay.html', data=data_to_display)
+    return jsonify({
+        "success": True,
+        "message": "Data has been successfully loaded into database.",
+    })
