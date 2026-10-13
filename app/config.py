@@ -14,8 +14,8 @@ class Config:
     GOOGLE_SHEETS_SCOPES = [
         "https://www.googleapis.com/auth/spreadsheets",
     ]
-    GOOGLE_CREDENTIALS_PATH = os.getenv('GOOGLE_APPLICATION_CREDENTIALS', 'gamecreds.json')
-    GOOGLE_SPREADSHEET_ID = os.getenv('GOOGLE_SPREADSHEET_ID', '1r5_223bpUkyx38m8cvy-pt8bBUE0Mln_jG1GaXt14DE')
+    GOOGLE_CREDENTIALS_PATH = os.getenv('GOOGLE_APPLICATION_CREDENTIALS', '')
+    GOOGLE_SPREADSHEET_ID = os.getenv('GOOGLE_SPREADSHEET_ID', '')
 
 class DevelopmentConfig(Config):
     DEBUG = True
