@@ -78,7 +78,7 @@ class PostForm(FlaskForm):
 
 Field lengths/constraints mirror the column definitions in `Post` — keep these two in sync when either changes.
 
-**2. Use it in a route (`app/main/routes.py`):**
+**2. Use it in a route (`../app/routes/routes.py`):**
 
 ```python
 from app.main.forms import PostForm

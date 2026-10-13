@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block head %}
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% endblock %}
+
+{% set page_title = "Start" %}
+
+{% block content %}
+    <label class="switch">
+        <input type="checkbox" id="typeToggle" {% if is_active %} checked {% endif %} onchange="toggleSwitched(this)" />
+        <span class="slider"></span>
+    </label>
+    <nav>
+        <button id="thebutton" hx-get="/get-partial/question/name" hx-target="#main-content"  style="margin: 20px; border: 3px solid purple; height: 50px; width: 40%">Get Question</button>
+    </nav>
+
+    <!-- The partial content should load in here -->
+    <main id="main-content">
+
+    </main>
+{% endblock %}

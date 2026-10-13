@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Question</title>
+</head>
+<body>
+{% if not data.status %}
+    <div>
+        <p>Sorry! We are having technical difficulties getting another question.</p>
+    </div>
+{% else %}
+    <div class="card">
+        <p class="card-text">{{ data.question }}</p>
+    </div>
+    <div class="card-grid">
+        {% for choice in data.choices %}
+            {% set answer = data.index %}
+            <div class="clickable-card" id="card-{{ loop.index0 }}" onclick="handleCardClick({{ loop.index0 }}, {{ answer }}, 'viewone')">
+                <h2>{{ choice }}</h2>
+            </div>
+        {% endfor %}
+    </div>
+    <div class="message" id="message">
+    </div>
+{% endif %}
+</body>
+</html>

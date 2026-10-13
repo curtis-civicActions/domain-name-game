@@ -9,7 +9,7 @@ routes without needing to know about every individual endpoint.
 ## Adding a route to an existing blueprint
 
 The `main` blueprint (`app/main/`) is the example already in this repo.
-To add a route to it, edit `app/main/routes.py`:
+To add a route to it, edit `../app/routes/routes.py`:
 
 ```python
 from app.main import bp

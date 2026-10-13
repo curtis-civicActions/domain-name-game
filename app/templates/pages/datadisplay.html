@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block head %}
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% endblock %}
+
+{% set page_title = "Start" %}
+
+{% block content %}
+  {% if data.target == "page" %}
+    {% for name, domains in data.data.items() %}
+        <h2>{{ name }}</h2>
+        <ul style="padding-left: 20px;">
+        {% for domain in domains %}
+          <li>{{ domain }}</li>
+        {% endfor %}
+        </ul>
+        <br/>
+   {% endfor %}
+  {% else %}
+    <h2>{{ data.message }}</h2>
+  {% endif %}
+{% endblock %}

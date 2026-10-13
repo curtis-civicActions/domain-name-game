@@ -97,7 +97,7 @@ same max-width) without copy-pasting that markup into each one.
 
 See `app/templates/pages/about.html` (hardcoded content) and
 `../app/templates/pages/post.html` (renders a `Post` model row) — both used
-by routes in `app/main/routes.py` — for complete, working examples.
+by routes in `../app/routes/routes.py` — for complete, working examples.
 
 ## Adding a new static page
 

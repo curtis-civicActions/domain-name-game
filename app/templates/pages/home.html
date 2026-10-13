@@ -1,23 +1,14 @@
 {% extends "index.html" %}
-{% set page_title = "Home" %}
+{% set page_title = "Domain Name Game" %}
 
 {% block page_content %}
-<p class="text-gray-700 leading-relaxed mt-4">Flask Basics</p>
-<div class="max-md rounded-lg overflow-hidden shadow-lg bg-white">
-  <div class="p-6">
-    <table class="w-full text-md text-left rtl:text-right text-body mt-10">
-        <caption>Page information</caption>
-        <tbody>
-            <tr class="border-b border-default">
-                <td class="px-6 py-4">Route</td>
-                <td class="px-6 py-4"><code>app.main.routes.home_page</code></td>
-            </tr>
-            <tr class="border-b border-default">
-                <td class="px-6 py-4">Template</td>
-                <td class="px-6 py-4"><code>app.templates.pages.home</code></td>
-            </tr>
-        </tbody>
-    </table>
+<p class="text-gray-700 leading-relaxed mt-4">Fun game where you can either match the owner to a domain or vice versa.</p>
+<div>
+  <div style="margin-bottom: 10px">
+      <button style="margin: 20px; border: 3px solid blue; height: 50px; width: 40%"><a href="/start">Shall We Play A Game</a></button>
+  </div>
+  <div style="margin-bottom: 10px">
+      <button style="margin: 20px;  border: 3px solid red; height: 50px; width: 40%"><a href="/fetch/data">Let's Get Some Data</a></button>
   </div>
 </div>
 {% endblock %}

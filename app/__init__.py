@@ -2,10 +2,9 @@ import os
 from datetime import datetime, timezone
 
 from flask import Flask
+from app.extensions import db, init_google_service_client
 
 from app.config import config
-from app.extensions import dbase, migrate
-
 
 def create_app(config_name=None):
     config_name = config_name or os.environ.get("FLASK_ENV", "default")
@@ -16,10 +15,10 @@ def create_app(config_name=None):
     # Ensure the instance folder exists so the default sqlite file can be created.
     os.makedirs(app.instance_path, exist_ok=True)
 
-    dbase.init_app(app)
-    migrate.init_app(app, dbase)
+    db.init_app(app)
+    init_google_service_client(app)
 
-    from app.main import bp as main_bp
+    from app.routes import bp as main_bp
 
     app.register_blueprint(main_bp)
 
@@ -29,15 +28,15 @@ def create_app(config_name=None):
         # view having to pass it explicitly (used in partials/footer.html).
         return {"current_year": datetime.now(timezone.utc).year}
 
-    with app.app_context():
-        from app import models  # noqa: F401  (registers models on db.metadata)
+    #with app.app_context():
+        #from app import models  # noqa: F401  (registers models on db.metadata)
 
         # Schema changes in dev/production go through Flask-Migrate/Alembic
         # (see `flask db migrate` / `flask db upgrade`, docs/database.md).
         # Tests use a throwaway in-memory db, so create_all() is fine there —
         # there's no migration history to maintain for a db that's discarded
         # after every test run.
-        if app.config.get("TESTING"):
-            dbase.create_all()
+        #if app.config.get("TESTING"):
+        #    db.create_all()
 
     return app
