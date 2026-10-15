@@ -1,8 +1,9 @@
 import os
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from flask import render_template
 from app.services.datagenerator import DataGenerator
 from app.services.datamanager import DataManager
+from app.forms import UserForm
 
 bp = Blueprint("main", __name__)
 
@@ -42,3 +43,63 @@ def fetch_data():
         "success": True,
         "message": "Data has been successfully loaded into database.",
     })
+
+@bp.route("/load/data", methods = ["GET", "POST"])
+def load_data():
+    form = UserForm(request.form if request.method == 'POST' else None)
+    message = None
+
+    if request.method == 'POST':
+        form.domains.entries.pop()
+        if form.validate():
+            # Access the submitted data as a Python list
+            submitted_domains = form.domains.data
+            clean_domains = [d for d in submitted_domains  if d.strip()]
+
+            datamanager = DataManager()
+            dm_response = datamanager.insertdata({"name": form.name.data, "domains": clean_domains})
+            message = dm_response["message"]
+
+            if dm_response["status"]:
+                form = UserForm(formdata=None)
+
+    elif request.method == 'GET':
+        pass
+    else:
+        pass
+
+    return render_template('pages/loaddata.html', form=form, message=message)
+
+@bp.route("/validate-field", methods=["POST"])
+def validate_field():
+    # Print everything Flask received in the form body
+    print("Received Form Keys:", list(request.form.keys()))
+    print("Received Form Data:", request.form.to_dict())
+
+    form = UserForm(request.form)
+    list_name = request.form.get("_list_name")
+    raw_index = request.form.get("_index")
+
+    if not list_name or raw_index is None or not hasattr(form, list_name):
+        return jsonify({"_valid": False, "_error": ['Invalid field or list name']}), 400
+
+    try:
+        index = int(raw_index)
+    except ValueError:
+        return jsonify({"_valid": False, "_error": ['Index must be an integer']}), 400
+
+    field_list = getattr(form, list_name)
+
+    if index < 0 or index >= len(field_list):
+        return jsonify({"_valid": False, "_error": ['Index of field mismatch']}), 400
+
+    # Locate the specific subfield entry using the integer index
+    target_entry = field_list[int(index)]
+    is_valid = target_entry.validate(form)
+
+    response_payload = jsonify({
+        '_valid': is_valid,
+        '_error': target_entry.errors,
+        '_element': f"{list_name}-{index}"
+    })
+    return response_payload

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block head %}
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% endblock %}
+
+{% set page_title = "Load Data" %}
+
+{% block content %}
+  <p>Enter a name and a domain that belongs to that person. You must have at least one domain per name.</p>
+  <form method="POST" action="/load/data">
+    <div>
+      {{ form.name.label }}: {{ form.name() }}
+    </div>
+    <div id="domain-fields-container">
+      {{ form.domains.label }}:
+      {% for domain in form.domains %}
+        <div class="domain-input-wrapper">
+          {{ domain(class_="wtf-form-input" ) }}
+          <span id="domains-{{ loop.index0 }}-error-message" class="error_message"></span>
+        </div>
+      {% endfor %}
+
+    </div>
+    {{ form.submit }}
+  </form>
+  <span class="error_message">
+    {% if form.errors %}
+      {{ form.errors }}
+    {% endif %}
+  </span>
+<span class="info_message">
+    {% if message %}
+      {{ message }}
+    {% endif %}
+  </span>
+{% endblock %}

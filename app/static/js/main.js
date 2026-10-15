@@ -24,8 +24,6 @@ function handleCardClick(index, answer, name) {
 
 function toggleSwitched(element) {
     const status = element.checked;
-    console.log("I made it this far");
-    console.log("Status: " + status);
 
     const btnElement = document.getElementById("thebutton");
     const routePath = "/get-partial/question/" + ((status) ? "domain" : "name");
@@ -84,3 +82,77 @@ function fetchSpreadsheetData() {
             btn.style.display = 'block';
         })
 }
+
+function setUpListener(elementId) {
+    document.getElementById(elementId).addEventListener('blur', function (e) {
+        const fullId = e.target.id;
+        const parts = fullId.split('-');
+        if (parts.length < 2) return;
+
+        console.log(`Listener triggered for element ${fullId}`);
+        const listName = parts[0];
+        const index = parts[1];
+
+        const formData = new FormData();
+        formData.append('_list_name', listName);
+        formData.append('_index', index);
+
+        // Find all inputs belonging to this specific FieldList and append them
+        // This ensures WTForms reconstructs the entire list array correctly on the backend
+        const allInputsInList = document.querySelectorAll(`[id^="${listName}-"]`);
+        allInputsInList.forEach(input=> {
+            if (input.tagName === 'INPUT' || input.tagName === 'TEXTAREA') {
+                formData.append(input.id, input.value);
+            }
+        })
+
+        fetch('/validate-field', {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => response.json())
+            .then(data => {
+                const errorSpan = document.getElementById(`${data._element}-error-message`);
+                if (!data._valid) {
+                    errorSpan.textContent = data._error;
+                } else {
+                    errorSpan.textContent = '';
+                }
+            })
+            .catch(error => console.error('Error validating field:', error));
+    });
+}
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Need to add eventListener to the first domains field
+    setUpListener('domains-0');
+
+    const container = document.getElementById('domain-fields-container');
+
+    if (container) {
+        container.addEventListener('input', function (e) {
+            const wrappers = container.getElementsByClassName('domain-input-wrapper');
+            const lastInput = wrappers[wrappers.length - 1].querySelector('input');
+
+            //I If the user typed into the very last input field, append a new empty one
+            if (e.target === lastInput && lastInput.value.trim() !== '') {
+                const nextIndex = wrappers.length;
+                const newWrapper = document.createElement('div');
+                newWrapper.className = 'domain-input-wrapper';
+
+                let fieldname = `domains-${nextIndex}`
+
+                // WTForms expects sequential IDs and names like domains-0, domains-1, domains-2
+                newWrapper.innerHTML = `
+                    <input id="${fieldname}" name="${fieldname}" type="text" value"" class="wtf-form-input">
+                    <span id="${fieldname}-error-message" class="error_message"></span>
+                `;
+
+                container.appendChild(newWrapper);
+
+                setUpListener(fieldname);
+            }
+        });
+    }
+});

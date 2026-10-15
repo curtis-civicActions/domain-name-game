@@ -122,6 +122,22 @@ input:checked + .slider:before {
   background-color: #ef4444;
   transition: width 0.4s ease
 }
+
+.wtf-form-input {
+  border: 1px solid #ced4da;
+  margin-bottom: 5px;
+}
+
+.error_message {
+  color: red;
+  font-size: 0.9em;
+}
+
+.error_message {
+  color: darkblue;
+  font-size: 0.9em;
+}
+
 .logo {
     height: 100%;
 }

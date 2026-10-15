@@ -490,6 +490,7 @@ dependencies = [
     { name = "mongomock" },
     { name = "python-dotenv" },
     { name = "python-slugify" },
+    { name = "wtforms" },
 ]
 
 [package.dev-dependencies]
@@ -509,6 +510,7 @@ requires-dist = [
     { name = "flask", specifier = ">=3.1.3" },
     { name = "flask-migrate", specifier = ">=4.1.0" },
     { name = "flask-mongoengine-3", specifier = ">=0.1.3" },
+    { name = "flask-wtf", specifier = ">=1.2.0" },
     { name = "flask-wtf", specifier = ">=1.3.0" },
     { name = "google-api-python-client", specifier = ">=2.0.0" },
     { name = "google-auth-httplib2", specifier = ">=0.2.0" },
@@ -517,6 +519,7 @@ requires-dist = [
     { name = "mongomock", specifier = ">=4.3.0" },
     { name = "python-dotenv", specifier = ">=1.2.3" },
     { name = "python-slugify", specifier = ">=9.0.0" },
+    { name = "wtforms", specifier = ">=3.1.0" },
 ]
 
 [package.metadata.requires-dev]
