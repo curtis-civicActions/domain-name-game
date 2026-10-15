@@ -1,75 +1,83 @@
 # Configuration
 
-There are two different mechanisms for configuration in this project, and
-they serve different purposes. Don't confuse them.
+> Note: this document was AI-generated with human review.
+
+This project uses two layers of configuration:
+
+1. Flask CLI bootstrapping via `.flaskenv`
+2. Application settings in `app/config.py`
+
+They serve different purposes and should not be mixed together.
 
 ## `.flaskenv` — Flask CLI bootstrapping
 
-```
+Current contents:
+
+```bash
 FLASK_APP=app.app
 FLASK_DEBUG=1
 ```
 
-- Tells the `flask` CLI (`flask run`, `flask shell`, `flask routes`) *where
-  to find* the app, before it can do anything else.
-- **Committed to git.** Nothing in here is a secret — it's just "how do you
-  run this project," which should be identical for every developer.
-- Only affects the `flask` CLI. If you run the app another way (e.g.
-  `python app/app.py`, gunicorn), this file has no effect.
-- Requires `python-dotenv` to be installed for Flask to auto-load it
-  (already a dependency here).
+- Tells the `flask` CLI where to find the app before it can run commands like
+  `flask run`, `flask shell`, or `flask routes`.
+- Is committed to git because it is not secret data — it is just local run
+  configuration.
+- Only affects the `flask` CLI. If you start the app some other way, this file
+  is not used.
 
-## `.env` — secrets and per-environment overrides
+## `.env` — local secrets and environment-specific values
 
-```
-SECRET_KEY=some-real-secret-value
-DATABASE_URL=postgresql://user:pass@host/dbname
-```
+This repository does not currently include a checked-in `.env` file, but the
+app will read environment variables if you set them locally. The important
+values are:
 
-- **Never committed** — already in `.gitignore`.
-- This is where real secrets and machine/environment-specific values go.
-- Currently empty in this repo (development falls back to the defaults in
-  `config.py`). Before deploying anywhere real, at minimum set a proper
-  `SECRET_KEY` here.
+- `GOOGLE_APPLICATION_CREDENTIALS` — path to the Google service-account JSON
+- `GOOGLE_SPREADSHEET_ID` — the sheet the app loads data from when using the
+  spreadsheet import path
 
-## `app/config.py` — the actual config classes
+If you add more environment-dependent settings later, this is the right place
+to document them. Do **not** commit real secrets.
+
+## `app/config.py` — the application config classes
+
+The current config file defines these values:
 
 ```python
+import os
+
 class Config:
-    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "sqlite:///.../app.db")
-    SECRET_KEY = os.environ.get("SECRET_KEY", "dev")
+    MONGODB_SETTINGS = {
+        "db": "game_data",
+        "host": "localhost",
+        "port": 27017,
+    }
 
-class DevelopmentConfig(Config): DEBUG = True
-class TestingConfig(Config): TESTING = True; SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
-class ProductionConfig(Config): DEBUG = False
+    GOOGLE_CREDENTIALS_PATH = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
+    GOOGLE_SPREADSHEET_ID = os.getenv("GOOGLE_SPREADSHEET_ID", "")
+    GOOGLE_SHEETS_SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 ```
 
-`create_app(config_name)` picks a class from the `config` dict by name. This
-is where `os.environ.get(...)` reads whatever `.env`/your shell set, with a
-fallback default for local dev.
+`create_app(config_name)` picks one of these classes from the `config` mapping:
 
-**Adding a new config value:**
+- `development`
+- `testing`
+- `production`
+- `default` (currently development)
 
-1. Add it to the `Config` base class (or a specific subclass if it should
-   only apply to one environment), reading from `os.environ` with a sane
-   default.
-2. If it's a secret, document it in `.env.example` (see below) — don't hardcode
-   the real value anywhere in the class.
-3. Access it anywhere in the app via `current_app.config["YOUR_KEY"]`.
+Development enables debug mode, testing enables Flask’s test flag, and
+production disables debug mode.
 
-## Precedence, if you're running through the `flask` CLI
+## What to add when the app needs a new setting
 
-`.env` loads first, then `.flaskenv` — but you shouldn't need to rely on
-that, since the two files shouldn't define overlapping variables in the
-first place.
+1. Add the setting to `Config` or a specific subclass in `app/config.py`.
+2. Read it from the environment with `os.getenv(...)` if it should be set
+   externally.
+3. Access it through `current_app.config[...]` or `app.config[...]`.
 
-## Recommended: add a `.env.example`
+## Notes on the current version
 
-This repo doesn't have one yet, but you should add one whenever you add a
-new required `.env` variable — commit `.env.example` (no real values) so
-teammates know what to fill in locally:
-
-```
-SECRET_KEY=
-DATABASE_URL=
-```
+- There is **no `SQLALCHEMY_DATABASE_URI`** in this project anymore.
+- There is **no `SECRET_KEY` setting yet**. If CSRF protection or signed
+  sessions are added later, that will need to be introduced.
+- If you want a teammate to run the app easily, consider adding a simple
+  `.env.example` with the required Google environment variables.

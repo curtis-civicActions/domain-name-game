@@ -1,105 +1,93 @@
 # Adding a Model
 
-Models live in `app/models/`. There's one model per file, and every model
-must be imported in `app/models/__init__.py` or SQLAlchemy will never know it
-exists (more on why below).
+> Note: this document was AI-generated with human review.
 
-## 1. Create the model file
+In the current app, “model” means a **MongoEngine document**. Documents live
+in `app/models/`, and you import them directly where they are needed.
 
-Say you're adding a `Note` model. Create `app/models/note.py`:
+> **Note:** the older SQLAlchemy/Base/migration workflow from earlier project
+> versions is obsolete here. There is no `models/__init__.py` registration step
+> and no `flask db migrate` command in this version.
 
-```python
-from datetime import datetime, timezone
+## 1. Create a document class
 
-from sqlalchemy import DateTime, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
-
-from app.extensions import Base
-
-
-class Note(Base):
-    __tablename__ = "notes"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    title: Mapped[str] = mapped_column(String(120), nullable=False)
-    body: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(timezone.utc)
-    )
-
-    def __repr__(self) -> str:
-        return f"<Note {self.id} {self.title!r}>"
-```
-
-If your model just needs `id`/`created_at`/`updated_at` and nothing else
-special, inherit from `app.models.base.BaseModel` instead of `Base` directly
-— see `../app/models/post.py` for a real example.
-
-Notes on the style used here (SQLAlchemy 2.0):
-- `Mapped[type]` + `mapped_column(...)` is the modern, type-checked way to
-  declare columns. Prefer it over the old `Column(db.Integer, ...)` style.
-- `Base` (from `app.extensions`) is the declarative base passed as
-  `model_class` to Flask-SQLAlchemy — always inherit from it, never from a
-  plain `DeclarativeBase` you define yourself. Don't use `dbase.Model`
-  instead: it's the same base at runtime, but it's assigned dynamically
-  inside `SQLAlchemy.__init__`, so mypy can't resolve it as a base class.
-- Use `dbase` from `app.extensions` for querying/sessions (e.g.
-  `dbase.session`), never instantiate your own `SQLAlchemy()`.
-
-## 2. Register it in `app/models/__init__.py`
+The existing `User` document in `app/models/user.py` is the best example:
 
 ```python
-from app.models.note import Note  # noqa: F401
+import mongoengine as me
+
+from app.extensions import db
+
+
+def min_items(val):
+    if len(val) < 1:
+        raise me.ValidationError("List must contain at least 1 item.")
+
+
+class ExampleUser(db.Document):
+    meta = {"collection": "users"}
+    name = me.StringField(required=True, max_length=100)
+    domains = me.ListField(me.StringField(), validation=min_items)
 ```
 
-**Why this step matters:** SQLAlchemy only knows about a model once its
-class body has actually executed. Two things depend on that:
-- **Tests:** `create_app()` calls `dbase.create_all()` for the in-memory test
-  database, which only creates tables for models it's seen.
-- **Migrations:** `flask db migrate` (see below) autogenerates a schema diff
-  by comparing your models against the database — a model Python never
-  imported is invisible to it too.
+This is the general pattern for MongoEngine documents in this project:
 
-If you never import `Note` somewhere, Python never runs the class body, and
-`notes` silently never shows up anywhere. Importing it in
-`models/__init__.py` (which `create_app` already imports) is what makes
-both of these work automatically.
+- inherit from `db.Document`
+- define fields with `mongoengine` field types
+- use helper validators when you need custom rules
 
-## 3. Generate and apply a migration
+## 2. Import the document where it is used
 
-Tests get their table for free via `dbase.create_all()` (see
-[`database.md`](database.md) for why), but **development and production
-databases do not** — you need to create a migration:
+Unlike SQLAlchemy, MongoEngine does not need a special import registry file to
+make a document “exist.” If a route or service needs `User`, just import it
+directly:
 
-```bash
-uv run flask db migrate -m "Add note model"
-uv run flask db upgrade
+```python
+from app.models.user import User
 ```
 
-The first command writes a new file to `migrations/versions/` — open it and
-check it actually says what you expect (see the autogenerate caveats in
-[`database.md`](database.md)) before running `upgrade`. Commit the generated
-file along with your model change.
+That is enough for querying and saving.
+
+## 3. Use MongoEngine methods instead of session-based ORM calls
+
+Examples:
+
+```python
+user = ExampleUser(name="Example", domains=["example.com"])
+user.save()
+
+ExampleUser.objects(name="Example").first()
+ExampleUser.objects.all().delete()
+```
+
+The current app uses these patterns in `app/services/datamanager.py` and
+`app/services/datagenerator.py`.
+
+## 4. Think about validation early
+
+The app already shows a few useful validation patterns:
+
+- `required=True` on `name`
+- `max_length=100` on the owner name
+- a custom validator to ensure the `domains` list has at least one item
+
+If you add a new document, add validation there instead of relying only on the
+form layer. That keeps invalid data out of the database even if it comes from
+another path later.
 
 ## Common mistakes to avoid
 
-- **Forgetting the `models/__init__.py` import** — the #1 cause of "why isn't
-  my table being created?"
-- **Defining a model class inside a test function.** `Base`'s metadata is
-  a *shared, process-global* registry — it is **not** reset between tests or
-  between `create_app()` calls. Defining a model class more than once in the
-  same test session will register duplicate tables and can leak schema
-  between tests. See `tests/test_db.py` for the pattern: define test-only
-  models once, at module scope.
-- **Instantiating your own `SQLAlchemy()`.** Always import the shared
-  `dbase`/`Base` from `app.extensions`.
-- **Subclassing `dbase.Model` instead of `Base`.** They're equivalent at
-  runtime, but `dbase.Model` is a dynamically assigned instance attribute
-  that mypy can't type-check as a base class — use `Base` (or `BaseModel`).
+- **Writing SQLAlchemy-style examples for MongoEngine.** `Mapped[...]`,
+  `mapped_column(...)`, `Base`, and `db.session` are not part of this app.
+- **Assuming a `models/__init__.py` import is required.** It is not.
+- **Skipping validation.** MongoEngine will store what you tell it to store
+  unless you validate first.
+- **Reusing one document name for multiple concepts.** Keep the model names
+  close to the real data shape (`User`, `GameEntry`, `QuestionSet`, etc.).
 
-This project is server-rendered (Jinja templates, see
-[`templates.md`](templates.md)), so there's no request/response
-serialization layer here — routes pass model instances straight into
-`render_template()`. If you later add a JSON API, that's the point where a
-serialization library (e.g. Marshmallow, or just hand-written `to_dict()`
-methods) would earn its keep — don't add one speculatively.
+## When a new document should be added
+
+Add a new document when the app needs a new kind of persistent record — for
+example, if you split the game into users, rounds, and answers. If the data is
+just a transient calculation or spreadsheet-derived payload, a service object
+may be a better fit than a new document class.

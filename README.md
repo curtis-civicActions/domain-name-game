@@ -1,63 +1,86 @@
 # Flask Basics
 
-A basic Flask application for understanding foundational Flask concepts.This README (and the docs it links to) is meant
-to explain not just *what* to run, but *why* the project is structured the way it is. Working on this application
-should provide you with an understanding of Flask concepts such as:
+> Note: this README was AI-generated with human review.
 
-- **Flask fundamentals**: Request/response cycle, blueprints, and Flask's extension system.
-- **SQLAlchemy fundamentals**: Data modeling, session lifecycle and transaction management, query construction with the
-  ORM.
-- **Data migrations (Alembic)**: Updating databases, and record values when changes are made to the database schema via
-  changes to the data models.
-- **Jinja2 template engine**: Variable substitution, control structures, template inheritances, autoescaping, and more.
+A small Flask application centered on a domain-name game. The app lets you
+load people/domain pairs manually or from Google Sheets, store them in
+MongoDB, and turn that data into a simple “who owns this domain?” quiz.
+The README and linked docs are meant to explain not just *what* to run, but
+*why* the project is structured the way it is.
+
+This project is a good place to learn or practice:
+
+- **Flask fundamentals**: request/response flow, blueprints, templates, and
+  Flask’s extension pattern.
+- **MongoEngine + MongoDB**: document modeling, querying, and local database
+  setup.
+- **Forms and validation**: WTForms-driven input handling for the manual data
+  loader.
+- **Spreadsheet integration**: pulling data from Google Sheets with a service
+  account.
+- **Server-rendered UI with light interactivity**: Jinja2 templates, HTMX,
+  and a small amount of custom JavaScript.
 
 ## Stack
 
-- **[Flask](https://flask.palletsprojects.com/)** — web framework
-- **[SQLAlchemy](https://www.sqlalchemy.org/)** (via Flask-SQLAlchemy) — ORM / database access
-- **[Flask-Migrate](https://flask-migrate.readthedocs.io/)** (Alembic) — database schema migrations
-- **[Flask-WTF](https://flask-wtf.readthedocs.io/)** — HTML form handling/CSRF
-- **[pytest](https://docs.pytest.org/)** — test runner
-- **[uv](https://docs.astral.sh/uv/)** — dependency management + running commands (this repo does not use plain `pip`/`venv` directly)
-- **SQLite** — the database, for now (see [`docs/database.md`](docs/database.md))
+- **[Flask](https://flask.palletsprojects.com/)** — web framework and app factory
+- **[MongoEngine](https://mongoengine.org/)** — document modeling for MongoDB
+- **[MongoDB](https://www.mongodb.com/)** — local data store, started via Docker Compose
+- **[WTForms](https://wtforms.readthedocs.io/)** / **[Flask-WTF](https://flask-wtf.readthedocs.io/)** — form handling and validation building blocks
+- **[gspread](https://docs.gspread.org/)** + **Google auth libraries** — Google Sheets import via service account credentials
+- **[Faker](https://faker.readthedocs.io/)** — generate sample names and domains
+- **[HTMX](https://htmx.org/)** — partial page updates without a full SPA
+- **[Tailwind CSS](https://tailwindcss.com/)** — utility-first styling via the CDN build
+- **[pytest](https://docs.pytest.org/)** + **mongomock** — automated tests with a mocked MongoDB backend
+- **[uv](https://docs.astral.sh/uv/)** — dependency management and command runner
 
-If you don't know one of these tools yet, that's the point of this
-project — look it up as you go.
+If you do not know one of these tools yet, that is fine — this repo is a
+learning project, so the expectation is to look things up as you go.
 
 ## Quick start
 
-**Prerequisites:** [`uv`](https://docs.astral.sh/uv/getting-started/installation/) which is already installed on your CA laptop. That's it — `uv` manages the Python
-version and virtual environment for you.
+**Prerequisites:** [`uv`](https://docs.astral.sh/uv/getting-started/installation/)
+and Docker/Compose. You also need a Google service-account JSON file and a
+spreadsheet ID if you want the spreadsheet import features to work, because
+the app initializes that client on startup.
 
 ```bash
 # Install dependencies (creates .venv/ automatically)
 uv sync
 
-# Apply database migrations (creates instance/app.db with all tables)
-uv run flask db upgrade
+# Start MongoDB locally
+docker compose up -d
+
+# Make sure the app can find your Google credentials and spreadsheet
+# export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+# export GOOGLE_SPREADSHEET_ID=<your-sheet-id>
 
 # Run the dev server
 uv run flask run
-# -> visit http://127.0.0.1:5000/
+
+# Or start MongoDB + wait for it + launch Flask in one go
+./startapp.sh
 
 # Run the tests
 uv run pytest
 ```
 
-Every command in this repo is prefixed with `uv run` instead of activating a virtualenv manually — `uv run` finds/uses
-the project's `.venv` automatically. See [uv's docs](https://docs.astral.sh/uv/) if this is new
-to you.
+Every command in this repo is run through `uv` instead of activating a
+virtual environment manually. `uv run` uses the project’s `.venv`
+automatically.
 
 ### Useful commands
 
 ```bash
-uv run flask routes          # list every registered route
-uv run flask shell            # open a Python shell with app context loaded
-uv run flask db migrate -m "message"   # generate a migration after changing a model
-uv run flask db upgrade                 # apply pending migrations
-uv run pytest -v               # verbose test output
-uv run pytest --cov=app --cov-report=term-missing   # test coverage report
-uv add <package>               # add a new dependency (updates pyproject.toml + uv.lock)
+uv run flask routes        # list every registered route
+uv run flask shell         # open a Python shell with app context loaded
+uv run flask run           # start the dev server
+uv run pytest              # run the test suite
+uv run pytest -v           # verbose test output
+uv run pytest tests/test_routes.py   # run one test file
+docker compose up -d       # start MongoDB
+docker compose down        # stop MongoDB
+uv run pre-commit install  # install the repo hooks once
 ```
 
 ## Project structure
@@ -65,111 +88,113 @@ uv add <package>               # add a new dependency (updates pyproject.toml + 
 ```
 .
 ├── app/
-│   ├── __init__.py       # create_app() — the application factory
+│   ├── __init__.py        # create_app() factory + app-wide context setup
 │   ├── app.py             # thin entrypoint: app = create_app()
-│   ├── config.py          # Config classes (Development/Testing/Production)
-│   ├── extensions.py      # Shared, unbound extension instances (db, ma, migrate)
-│   ├── main/               # example blueprint (routes grouped by feature)
-│   │   ├── __init__.py
-│   │   └── routes.py
-│   ├── models/             # SQLAlchemy models — one file per model (page.py is a real example)
-│   ├── static/
-│   └── templates/
-├── tests/
-│   ├── conftest.py         # shared pytest fixtures (app, client, db)
-│   ├── test_app_factory.py
-│   ├── test_db.py
-│   ├── test_page_model.py
-│   └── test_routes.py
-├── migrations/              # Alembic migration history (via Flask-Migrate) — committed to git
-│   └── versions/
-├── instance/                 # gitignored; holds the local instance/app.db sqlite file
-├── .env                      # gitignored; secrets/local overrides (currently empty)
-├── .flaskenv                 # committed; tells the `flask` CLI how to find/run the app
+│   ├── config.py          # development / testing / production config
+│   ├── extensions.py      # MongoEngine connection + Google Sheets client
+│   ├── forms.py           # WTForms form and custom validators
+│   ├── models/            # MongoEngine documents
+│   ├── routes/            # main blueprint and page/data routes
+│   ├── services/          # spreadsheet loading, sample-data generation, persistence helpers
+│   ├── static/            # JavaScript, CSS, favicon, and images
+│   └── templates/         # Jinja base layout, pages, and partials
+├── tests/                 # pytest suite and fixtures
+├── docker-compose.yml     # local MongoDB service
+├── instance/              # runtime files created locally
+├── startapp.sh            # convenience script to start the app stack
+├── .flaskenv              # Flask CLI bootstrap (FLASK_APP, debug)
+├── game-data-creds.json   # local Google service-account credentials file
 ├── pyproject.toml
-└── docs/                     # deep-dive guides — see below
+└── docs/                  # deeper guides and notes
 ```
 
 ## Documentation
 
-This README covers the basics. For anything more involved, see the guides
-in [`docs/`](./docs/):
+This README covers the basics. For deeper context, see the guides in
+`docs/`:
 
-| Guide                                            | What's in it                                                                                                |
-|--------------------------------------------------|-------------------------------------------------------------------------------------------------------------|
-| [`docs/architecture.md`](docs/architecture.md)   | Why the app factory + blueprint pattern is used, and how the pieces fit together                            |
-| [`docs/configuration.md`](docs/configuration.md) | `.env` vs `.flaskenv` vs `config.py` — what goes where and why                                              |
-| [`docs/adding-routes.md`](docs/adding-routes.md) | How to add a route to an existing blueprint, or create a new one                                            |
-| [`docs/templates.md`](docs/templates.md)         | Base layout, nav/footer partials, and how the static-page template works                                    |
-| [`docs/adding-models.md`](docs/adding-models.md) | How to add a SQLAlchemy model                                                                               |
-| [`docs/forms.md`](docs/forms.md)                 | WTForms/Flask-WTF: what they are, CSRF protection, and building a form-backed route                         |
-| [`docs/database.md`](docs/database.md)           | Where the DB lives per environment, and the Flask-Migrate/Alembic workflow for schema changes               |
-| [`docs/testing.md`](docs/testing.md)             | How to write tests, the fixtures available, and a real gotcha about shared SQLAlchemy metadata across tests |
-| [`docs/improvements.md`](docs/improvements.md)   | Running list of known gaps, caveats, and good next-step tasks across the project                            |
+| Guide | What’s in it |
+|---|---|
+| [`docs/architecture.md`](docs/architecture.md) | How the app factory, blueprints, extensions, and request flow fit together |
+| [`docs/configuration.md`](docs/configuration.md) | `.flaskenv`, `.env`, and `app/config.py` |
+| [`docs/database.md`](docs/database.md) | Local database setup, Docker, and persistence workflow |
+| [`docs/forms.md`](docs/forms.md) | Form handling, validation, and request processing |
+| [`docs/templates.md`](docs/templates.md) | Jinja layout, partials, and page composition |
+| [`docs/adding-routes.md`](docs/adding-routes.md) | How to add or organize routes with blueprints |
+| [`docs/adding-models.md`](docs/adding-models.md) | How to add or register data models/documents |
+| [`docs/testing.md`](docs/testing.md) | Pytest fixtures, client usage, and test isolation |
+| [`docs/improvements.md`](docs/improvements.md) | Known gaps, rough edges, and next-step ideas |
 
-**If you only read one doc, read `docs/architecture.md` first** — it explains the app factory pattern that everything
-else assumes you already understand.
+**If you only read one doc, read `docs/architecture.md` first** — it explains
+the factory/blueprint setup that everything else builds on.
 
 ## Contributing / making changes
 
-Rough workflow for adding a feature end-to-end:
+Rough workflow for adding a feature end to end:
 
-1. Add a model — [`docs/adding-models.md`](docs/adding-models.md)
-2. Add a route (in an existing or new blueprint) — [`docs/adding-routes.md`](docs/adding-routes.md)
-3. Add tests for both — [`docs/testing.md`](docs/testing.md)
-4. Run `uv run pytest` before considering it done
+1. Update or add the data model/document in `app/models/`.
+2. Update the relevant service or form code in `app/services/` or `app/forms.py`.
+3. Add or adjust the route in `app/routes/routes.py`.
+4. Update the matching template in `app/templates/`.
+5. Add or update tests in `tests/`.
+6. Run `uv run pytest` before considering the change done.
 
-Before committing your work, run `uv run pre-commit install` once (this also installs the commit-msg hook — see below).
-After that, the hooks in [`.pre-commit-config.yaml`](.pre-commit-config.yaml) run automatically on every commit:
-[ruff](https://docs.astral.sh/ruff/) (lint + format),
-[mypy](https://mypy-lang.org/) (type checking), [bandit](https://bandit.readthedocs.io/en/latest/)
-(security linting), [pip-audit](https://pypi.org/project/pip-audit/) (dependency vulnerability scanning), and some
-general file format checkers. `pre-commit` and `commitizen` are both installed automatically via `uv sync`
-(they're in the `dev` dependency group) — no separate global install needed.
+Before committing your work, run `uv run pre-commit install` once. After
+that, the hooks in [`.pre-commit-config.yaml`](.pre-commit-config.yaml) run
+automatically on every commit: [Ruff](https://docs.astral.sh/ruff/) (lint and
+format), [mypy](https://mypy-lang.org/) (type checking),
+[Bandit](https://bandit.readthedocs.io/en/latest/) (security linting),
+[Commitizen](https://commitizen-tools.github.io/commitizen/) (commit message
+formatting), and a few general file checks.
 
-### Commit messages: Commitizen + Conventional Commits
+## Commit messages: Commitizen + Conventional Commits
 
-This repo enforces [Conventional Commits](https://www.conventionalcommits.org/) formatted commit messages, via
-[Commitizen](https://commitizen-tools.github.io/commitizen/) running as a `commit-msg` hook. Once you've run
-`pre-commit install`, any commit whose message doesn't match the required format is **rejected**:
+This repo enforces [Conventional Commits](https://www.conventionalcommits.org/)
+via the `commit-msg` hook. Once you have run `pre-commit install`, any commit
+message that does not match the required format is rejected:
 
-```
+```text
 <type>(<optional scope>): <description>
 ```
 
-Allowed `<type>` values: `feat`, `fix`, `build`, `bump`, `chore`, `ci`, `docs`, `perf`, `refactor`, `revert`, `style`,
-`test`.
+Allowed `<type>` values include `feat`, `fix`, `build`, `bump`, `chore`,
+`ci`, `docs`, `perf`, `refactor`, `revert`, `style`, and `test`.
 
 ```bash
-git commit -m "feat: add page model and dynamic page route"
-git commit -m "fix(routes): return 404 for missing page slug"
+git commit -m "feat: add spreadsheet import support"
+git commit -m "fix(routes): handle empty domain lists"
 git commit -m "not following the format"   # rejected by the commit-msg hook
 ```
 
-If you'd rather not memorize the format, use Commitizen's interactive prompt instead of `git commit` directly — it asks
-you for the type, scope, and description and builds a compliant message for you:
+If you would rather not memorize the format, use Commitizen’s interactive
+prompt instead of `git commit` directly:
 
 ```bash
 uv run cz commit
 ```
 
-**Why this matters beyond style:** Conventional Commits is what makes automated changelog generation and semantic
-version bumping possible later (`cz bump`, `cz changelog`) — the commit history itself becomes structured data instead
-of free text.
-
+Why this matters beyond style: Conventional Commits makes changelog
+generation and semantic versioning easier later. The commit history becomes
+structured data instead of free text.
 
 ## Known gaps / honest state of this project
 
-This is a real, working app, not a polished one. Things intentionally left unfinished as learning opportunities / next
-steps:
+This is a real working app, not a polished product. A few things are still
+intentionally rough or incomplete:
 
-- **`SECRET_KEY` defaults to `"dev"`** if `.env` doesn't set one — fine for local development, not fine for anything
-  production.
-- **Only one blueprint (`main`) and one real model (`Post`)** — a good next exercise is adding a second model/blueprint
-  pair following the same pattern (see [`docs/adding-models.md`](docs/adding-models.md) and
-  [`docs/adding-routes.md`](docs/adding-routes.md)).
-- **`Page.body` is rendered with Jinja's `|safe` filter** (raw HTML, no escaping) — fine for trusted/admin-authored
-  content, a real risk if this ever accepts page content from untrusted users without sanitization. See the note in
-  `app/templates/pages/post.html`.
-- **No admin UI for creating `Post` rows** — pages are currently created via `flask shell` or a script; a form-based
-  create/edit route (Flask-WTF is already a dependency for this) is a natural next feature.
+- **Google credentials are required at startup.** `create_app()` initializes
+  the Google Sheets client immediately, so the app will not boot cleanly
+  without a valid `GOOGLE_APPLICATION_CREDENTIALS` value.
+- **The data-loading flow assumes a fairly specific spreadsheet shape.** If
+  the sheet does not match what `DataGenerator` expects, you will need to
+  adjust the loader.
+- **Some route/service logic is still intentionally lightweight.** The app is
+  built for experimentation and learning, so there is no admin dashboard,
+  authentication system, or polished CRUD interface yet.
+- **The UI is intentionally minimal.** Tailwind and HTMX keep the pages simple
+  and fast to iterate on, but the front end is still a prototype rather than a
+  finished product.
+
+If you want to extend this project, the next natural steps are usually a real
+admin workflow for entering data, better validation around the spreadsheet
+import, and more complete error handling around external services.

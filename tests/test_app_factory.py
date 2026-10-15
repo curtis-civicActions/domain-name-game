@@ -9,11 +9,16 @@ def test_create_app_defaults_to_development(monkeypatch):
     assert app.config["DEBUG"] is DevelopmentConfig.DEBUG
 
 
-def test_testing_config_uses_in_memory_db(app):
-    assert app.config["TESTING"] is True
-    assert (
-        app.config["SQLALCHEMY_DATABASE_URI"] == TestingConfig.SQLALCHEMY_DATABASE_URI
-    )
+def test_testing_config_uses_mongodb_settings():
+    # This project does not use an in-memory SQLite database. The testing
+    # config only flips Flask into test mode and keeps the MongoDB settings
+    # aligned with the app's local Mongo connection.
+    assert TestingConfig.TESTING is True
+    assert TestingConfig.MONGODB_SETTINGS == {
+        "db": "game_data",
+        "host": "localhost",
+        "port": 27017,
+    }
 
 
 def test_production_config_disables_debug():

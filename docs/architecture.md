@@ -1,114 +1,120 @@
 # Architecture
 
-This app uses the **application factory** pattern with **blueprints**, which
-is the standard way to structure a Flask app that's going to grow beyond a
-handful of routes. If you're new to Flask, read this before touching code —
-it explains *why* the files are organized the way they are.
+> Note: this document was AI-generated with human review.
+
+This app uses the **application factory** pattern with a single **blueprint**
+for the main site routes. That is the right shape for a Flask app that needs
+to be testable, configurable, and able to grow beyond a tiny script.
+
+> **Note:** older SQLAlchemy/Alembic-era guidance from previous versions of
+> this project is no longer relevant. The current app uses MongoEngine and
+> MongoDB instead.
 
 ## Why a factory instead of a global `app = Flask(__name__)`?
 
-The naive/tutorial way to write Flask is:
+The simple tutorial pattern works for a throwaway demo, but it quickly gets in
+the way here because:
 
-```python
-# DON'T do this in a real project
-from flask import Flask
-app = Flask(__name__)
+1. **Tests need their own app instance.** The test suite uses a special
+   configuration and a mocked MongoDB connection.
+2. **Extensions must be initialized cleanly.** The database client and Google
+   Sheets client are bound inside the factory instead of being created at
+   import time.
+3. **Routes should not be assembled until the app exists.** Import order stays
+   predictable when the app is built in one place.
 
-@app.route("/")
-def index():
-    ...
-```
+In this project, the factory lives in `app/__init__.py`. It:
 
-This works for a 10-line script, but breaks down for anything real:
+- reads the active config name from `FLASK_ENV` or the caller
+- creates the Flask app with `instance_relative_config=True`
+- loads the matching config class from `app.config.config`
+- ensures the instance directory exists
+- initializes MongoEngine with `db.init_app(app)`
+- initializes the Google Sheets client
+- imports and registers the `main` blueprint from `app.routes`
 
-1. **You can't create more than one app instance.** Tests need a fresh app
-   configured differently (in-memory DB, `TESTING=True`) from the app you'd
-   run in production. A global `app` object can't do that.
-2. **Circular imports.** The moment your routes need the database, and the
-   database needs the app, and the app needs the routes... you get import
-   errors. The factory pattern breaks this cycle deliberately.
-
-Instead, we define a **function** that builds and returns a configured app:
-
-```python
-# app/__init__.py
-def create_app(config_name=None):
-    app = Flask(__name__, instance_relative_config=True)
-    app.config.from_object(config[config_name])
-    dbase.init_app(app)
-    app.register_blueprint(main_bp)
-    return app
-```
-
-Anyone who needs an app — the dev server, the test suite, a future CLI
-script — calls `create_app()` and gets a fully wired instance.
+Anything that needs an app — the dev server, tests, a future CLI, or a WSGI
+server — calls `create_app()` and gets a configured instance back.
 
 ## The moving pieces
 
 ```
 app/
-├── __init__.py       # create_app() factory — the only place that assembles everything
-├── config.py         # Config classes (Development/Testing/Production)
-├── extensions.py     # Unbound extension instances (dbase, migrate) + the shared Base class
-├── app.py            # Thin entrypoint: `app = create_app()`, used by `python app/app.py`
-├── main/              # Example blueprint
-│   ├── __init__.py    # Blueprint("main", __name__)
-│   └── routes.py       # Routes registered on that blueprint
-└── models/            # SQLAlchemy models — page.py is a real, working example
+├── __init__.py        # create_app() factory and app-wide setup
+├── app.py             # thin entrypoint: app = create_app()
+├── config.py          # development/testing/production config classes
+├── extensions.py      # MongoEngine connection and Google Sheets client
+├── forms.py           # WTForms definitions and validators
+├── models/            # MongoEngine documents
+├── routes/            # the main blueprint and page routes
+├── services/          # data loading, sample generation, persistence helpers
+├── static/            # JS, CSS, favicon, images
+└── templates/         # base layout, page templates, and partials
 ```
 
 ### `config.py`
 
-Plain classes, one per environment. `create_app(config_name)` picks one by
-name (`"development"`, `"testing"`, `"production"`, or `"default"`).
-Nothing in here is Flask-specific — it's just data. See
-[`configuration.md`](configuration.md) for details on env vars vs. config
-classes.
+`app/config.py` defines plain configuration classes and a `config` mapping.
+`create_app(config_name)` picks one by name (`development`, `testing`,
+`production`, or `default`). The current configuration includes:
+
+- `MONGODB_SETTINGS` for MongoEngine
+- `GOOGLE_CREDENTIALS_PATH` and `GOOGLE_SPREADSHEET_ID`
+- `GOOGLE_SHEETS_SCOPES`
+
+See [`configuration.md`](configuration.md) for the environment-variable side
+of that setup.
 
 ### `extensions.py`
 
-Extension objects (`dbase = SQLAlchemy(model_class=Base)`) are created
-**without** an app attached, then bound later inside `create_app()` via
-`.init_app(app)`.
+This file creates the shared extension objects without attaching them to an
+app immediately:
 
-This two-step "create unbound, bind later" pattern is the standard Flask
-extension convention. It exists specifically so `extensions.py` doesn't need
-to import `app/__init__.py` (which imports `extensions.py`) — i.e., it avoids
-a circular import. Any new extension you add (e.g., a login manager, a mail
-client) should follow the same pattern.
+```python
+from flask_mongoengine import MongoEngine
 
-`extensions.py` also defines `Base(DeclarativeBase)` and passes it to
-`SQLAlchemy(model_class=Base)`. Flask-SQLAlchemy's `dbase.Model` is assigned
-dynamically at runtime, which mypy can't resolve as a base class — `Base` is
-the same declarative base at runtime, but statically typed, so models should
-subclass `Base` (see `app/models/base.py`), not `dbase.Model`.
+db = MongoEngine()
+```
 
-### `main/` (blueprints)
+The MongoDB client is bound later in `create_app()` with `db.init_app(app)`.
+The same pattern is used for the Google Sheets client in
+`init_google_service_client(app)`.
 
-A **blueprint** is a self-contained group of routes that gets registered onto
-the app inside `create_app()`. Routes are *not* defined directly on the `app`
-object anywhere except inside a blueprint. See
-[`adding-routes.md`](adding-routes.md) for the full walkthrough.
+This “create it once, bind it later” approach avoids circular imports and is
+the standard Flask extension pattern.
+
+### `routes/` (blueprints)
+
+The current app has one blueprint, `main`, defined in `app/routes/routes.py`.
+It handles:
+
+- landing and informational pages (`/`, `/about`, `/start`, `/gather/data`)
+- HTMX partial loading (`/get-partial/question/<view_name>`)
+- spreadsheet/database loading routes (`/fetch/data`, `/load/data`)
+- field validation (`/validate-field`)
+
+If this project grows, new feature areas should still be split into their own
+blueprints rather than adding more and more handlers to one file.
 
 ### `app.py`
 
-This is a thin wrapper, not the "real" app:
+This file is just the launch point:
 
 ```python
 from app import create_app
+
 app = create_app()
 ```
 
-It exists so you have something to point a WSGI server or `python app/app.py`
-at. All the actual construction logic lives in the factory, not here.
+It exists so the Flask CLI and a WSGI server have a simple module-level app
+to point at.
 
 ## Request lifecycle, in one sentence
 
-`create_app()` builds the app once at startup → Flask routes an incoming
-request to the matching blueprint route function → that function talks to
-`dbase.session` (SQLAlchemy) to read/write data → the route renders a Jinja
-template with the model instance directly → returns a response.
+`create_app()` builds the app → a browser request hits one of the blueprint
+routes → the route uses MongoEngine documents or a service class like
+`DataManager`/`DataGenerator` → the route renders a Jinja template or returns
+JSON → Flask sends the response.
 
-Schema changes (adding/altering a model) go through **Flask-Migrate/Alembic**
-(`migrations/`), not `dbase.create_all()` — see [`database.md`](database.md)
-for the migration workflow.
+There are no SQLAlchemy sessions or Alembic migrations in this version of the
+project. The old migration workflow is historical only.

@@ -1,135 +1,101 @@
 # Adding a Route
 
-Routes are grouped into **blueprints** — small, self-contained packages of
-related routes. Don't add `@app.route(...)` directly anywhere; always go
-through a blueprint. This keeps route logic organized by feature instead of
-piling everything into one file, and it's what lets `create_app()` register
-routes without needing to know about every individual endpoint.
+> Note: this document was AI-generated with human review.
 
-## Adding a route to an existing blueprint
+Routes in this app live on a single **blueprint** named `main`, defined in
+`app/routes/routes.py`.
 
-The `main` blueprint (`app/main/`) is the example already in this repo.
-To add a route to it, edit `../app/routes/routes.py`:
+> **Note:** the older route examples that referenced a different package
+> layout are no longer relevant. The current project keeps its routes in
+> `app/routes/routes.py`.
+
+## Adding a route to the existing blueprint
+
+The pattern is simple:
 
 ```python
-from app.main import bp
+from flask import Blueprint, render_template
+
+bp = Blueprint("main", __name__)
 
 
-@bp.route("/")
-def hello_world():
-    return "Hello World!"
-
-
-@bp.route("/ping")
-def ping():
-    return {"status": "ok"}
+@bp.route("/about")
+def about():
+    return render_template("pages/about.html")
 ```
 
-That's it — no registration step needed, since the whole blueprint is
-already registered once in `create_app()`.
+That route is automatically active because `create_app()` registers `bp`
+once during app startup.
 
-## Creating a new blueprint (for a new feature area)
+### A few current examples from the app
 
-Once a feature has more than a couple of routes, give it its own blueprint
-instead of piling everything into `main`. Example: adding a `notes`
-blueprint.
+- `@bp.route("/")` → home page
+- `@bp.route("/start")` → the HTMX game screen
+- `@bp.route("/gather/data")` → the data entry / spreadsheet loading page
+- `@bp.route("/get-partial/question/<view_name>")` → returns the question
+  partial that gets swapped into the page
+- `@bp.route("/load/data", methods=["GET", "POST"])` → processes the
+  WTForms form
 
-**1. Create the package:**
+## Adding a new page route
 
-```
-app/notes/
-├── __init__.py
-└── routes.py
-```
+If you want a new static page, add a route that renders a template. In
+practice, that means adding a function in `app/routes/routes.py` that returns
+`render_template("pages/help.html")` for the new path.
 
-**2. `app/notes/__init__.py`:**
+Then create the template under `app/templates/pages/`.
+
+## Adding a route that returns JSON
+
+The app already has one example in `/fetch/data`, which returns JSON instead
+of HTML. The route simply returns a dictionary with `success` and `message`
+keys, and Flask serializes it as JSON automatically.
+
+Returning a dict makes Flask serialize it as JSON automatically.
+
+## When to create a new blueprint
+
+Keep using the `main` blueprint until the route group starts feeling too big.
+If you add a separate feature area later, create a new blueprint package and
+register it in `create_app()`.
+
+The pattern looks like this:
 
 ```python
 from flask import Blueprint
 
-bp = Blueprint("notes", __name__, url_prefix="/notes")
-
-from app.notes import routes  # noqa: E402,F401
+bp = Blueprint("reports", __name__, url_prefix="/reports")
 ```
 
-The `url_prefix` means every route in this blueprint is automatically
-namespaced — a route defined as `@bp.route("/")` here will actually be
-served at `/notes/`.
+Then import that blueprint in `app/__init__.py` and register it there.
 
-**3. `app/notes/routes.py`:**
+## Why the import happens after the blueprint is created
+
+If a routes module imports a blueprint before the blueprint exists, you get a
+circular import. The fix is the standard Flask pattern:
+
+1. create `bp`
+2. define routes on it
+3. import the module from `create_app()`
+
+That is why the blueprint is built before `create_app()` imports it.
+
+## Testing a route
+
+Use the `client` fixture from `tests/conftest.py`:
 
 ```python
-from flask import request
-
-from app.extensions import dbase
-from app.models.note import Note, note_schema, notes_schema
-from app.notes import bp
-
-
-@bp.route("/", methods=["GET"])
-def list_notes():
-    notes = dbase.session.query(Note).all()
-    return notes_schema.dump(notes)
-
-
-@bp.route("/", methods=["POST"])
-def create_note():
-    data = note_schema.load(request.get_json())
-    note = Note(**data)
-    dbase.session.add(note)
-    dbase.session.commit()
-    return note_schema.dump(note), 201
-```
-
-**4. Register the blueprint in `app/__init__.py`:**
-
-```python
-from app.main import bp as main_bp
-from app.notes import bp as notes_bp
-
-app.register_blueprint(main_bp)
-app.register_blueprint(notes_bp)
-```
-
-**5. Verify it's wired up:**
-
-```bash
-uv run flask routes
-```
-
-You should see your new routes listed.
-
-## Why the import happens at the *bottom* of `__init__.py`
-
-```python
-bp = Blueprint("notes", __name__, url_prefix="/notes")
-
-from app.notes import routes  # noqa: E402,F401
-```
-
-`routes.py` needs to import `bp` from `app/notes/__init__.py` to register
-routes on it (`@bp.route(...)`). If `app/notes/__init__.py` imported
-`routes` at the *top* of the file — before `bp` is defined — you'd get a
-circular import error. Defining `bp` first, then importing `routes` after,
-breaks the cycle. This is a standard Flask blueprint idiom, not unique to
-this project.
-
-## Testing a new route
-
-See [`testing.md`](testing.md) — in short, use the `client` fixture from
-`tests/conftest.py`:
-
-```python
-def test_ping(client):
-    response = client.get("/ping")
+def test_home_page(client):
+    response = client.get("/")
     assert response.status_code == 200
-    assert response.get_json() == {"status": "ok"}
 ```
+
+For routes with mocked services, patch `DataManager` or `DataGenerator` in
+the route module, as the current tests do.
 
 ## Rendering HTML instead of JSON
 
-For routes that return a page rather than an API response, use
-`render_template(...)`. If it's a simple static page (no forms, no DB
-data), extend `index.html` instead of building the layout yourself — see
-`app/templates/pages/about.html` for a working example, and
-[`docs/templates.md`](templates.md) for the full templates guide.
+Most routes in this app render templates. Use `render_template(...)` for
+pages, and use JSON only when the front end needs structured data. Static
+pages should extend `index.html`; interactive pages like `start.html` and
+`loaddata.html` extend `base.html` directly.

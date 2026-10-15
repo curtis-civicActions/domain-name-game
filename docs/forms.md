@@ -1,157 +1,92 @@
-# Forms (WTForms / Flask-WTF)
+# Forms (WTForms)
 
-This doc explains what WTForms/Flask-WTF are, why they're here, and how to actually wire them in.
+> Note: this document was AI-generated with human review.
 
-## What WTForms and Flask-WTF actually are
+This app uses **WTForms** directly for the data-loading form. `Flask-WTF` is
+installed, but CSRF protection is not initialized yet.
 
-- **[WTForms](https://wtforms.readthedocs.io/)** is a form library: you declare a form as a Python class (fields + validators), and it handles
-  parsing submitted data, running validation, and reporting errors per field. It has no Flask dependency at all —
-  it works with any framework.
-- **[Flask-WTF](https://flask-wtf.readthedocs.io/)** is a thin integration layer on top of WTForms for Flask specifically. It adds:
-  - Automatic **CSRF protection** on every form (a hidden token field + verification on submit).
-  - A `FlaskForm` base class that reads submitted data from `request.form`/`request.files` automatically, instead
-    of you wiring that up by hand.
+> **Important:** older examples in this guide referred to a `PostForm` and a
+> SQLAlchemy-backed create/edit workflow. Those examples are no longer
+> relevant to the current app.
 
-In short: WTForms defines *what a form looks like and how it validates*; Flask-WTF handles *getting request data
-into it safely* in a Flask app.
+## What the current form looks like
 
-## Why use this instead of just reading `request.form` directly?
-
-You could read `request.form["title"]` in a view function and validate it by hand. WTForms is worth the extra
-layer once you have more than a field or two, because it gives you for free:
-- **Validation with reusable rules** (`DataRequired`, `Length`, `Email`, etc.) instead of a pile of `if`
-  statements.
-- **CSRF protection** — without it, any HTML page hosted elsewhere could submit a POST to your app on a logged-in
-  user's behalf. This matters the moment you have any state-changing POST route.
-- **Re-rendering a form with its previous values and per-field errors** after a failed submission, instead of
-  losing what the user typed.
-
-## Prerequisite: enable CSRF protection app-wide
-
-`flask-wtf` being installed does **not** automatically protect anything — `CSRFProtect` has to be initialized.
-This project doesn't do that yet. Following the pattern in `app/extensions.py` (shared, unbound extension
-instances, bound later via `init_app`):
-
-**1. Add it to `app/extensions.py`:**
+The form lives in `app/forms.py` and is called `UserForm`:
 
 ```python
-from flask_wtf import CSRFProtect
+from wtforms import FieldList, Form, StringField, SubmitField
+from wtforms.validators import DataRequired, ValidationError
 
-csrf = CSRFProtect()
+
+def validate_domain_name(form, field):
+    ...
+
+
+class UserForm(Form):
+    name = StringField("Enter name of domain owner", [DataRequired()])
+    domains = FieldList(StringField("", validators=[validate_domain_name]), min_entries=1)
+    submit = SubmitField("Load User")
 ```
 
-**2. Bind it in `create_app()` (`app/__init__.py`), alongside `dbase`/`migrate`:**
+This form is used by the `/load/data` route.
 
-```python
-from app.extensions import csrf, dbase, migrate
+## Why use WTForms here?
 
-csrf.init_app(app)
-```
+The app needs a little structure around user input:
 
-`SECRET_KEY` (already set in `app/config.py`) is what Flask-WTF uses to sign CSRF tokens — it's the same key
-used for sessions. Note the README's existing warning: the `"dev"` default is fine locally but must be overridden
-via `.env` before this is ever exposed beyond your machine.
+- a person name
+- one or more domain names
+- validation for each domain value
 
-## Example: a form for the existing `Post` model
+WTForms keeps that logic in one place instead of spreading it across the route
+handler.
 
-Using `app/models/post.py` (`slug`, `title`, `body`) as the concrete example:
+## How the current route uses the form
 
-**1. Create `app/main/forms.py`:**
+The relevant route in `app/routes/routes.py` builds a `UserForm` from
+`request.form` on `POST`, removes the extra blank domain entry, and then calls
+`form.validate()` before saving anything.
 
-```python
-from flask_wtf import FlaskForm
-from wtforms import StringField, TextAreaField
-from wtforms.validators import DataRequired, Length, Regexp
+That means the form is being validated manually with `form.validate()` rather
+than `validate_on_submit()`.
 
-class PostForm(FlaskForm):
-    slug = StringField(
-        "Slug",
-        validators=[
-            DataRequired(),
-            Length(max=80),
-            Regexp(r"^[a-z0-9-]+$", message="Use lowercase letters, numbers, and hyphens only."),
-        ],
-    )
-    title = StringField("Title", validators=[DataRequired(), Length(max=120)])
-    body = TextAreaField("Body", validators=[DataRequired()])
-```
+## Validation behavior
 
-Field lengths/constraints mirror the column definitions in `Post` — keep these two in sync when either changes.
+The current validation rules are:
 
-**2. Use it in a route (`../app/routes/routes.py`):**
+- `name` is required
+- at least one `domains` entry must exist
+- every domain must look like a valid domain name and must be reasonably
+  short
 
-```python
-from app.main.forms import PostForm
+The custom `validate_domain_name()` helper enforces the domain format.
 
-@bp.route("/post/new", methods=["GET", "POST"])
-def new_post():
-    form = PostForm()
-    if form.validate_on_submit():
-        post = Post(slug=form.slug.data, title=form.title.data, body=form.body.data)
-        dbase.session.add(post)
-        dbase.session.commit()
-        return redirect(url_for("main.show_page", slug=post.slug))
-    return render_template("pages/post_form.html", form=form)
-```
+## Rendering the form in a template
 
-`validate_on_submit()` does two things in one call: confirms the request is a `POST`, and runs all field
-validators. On `GET` (or a failed `POST`), it's `False` and you fall through to re-rendering the form — with
-whatever the user already typed still in `form.<field>.data`, and errors available at `form.<field>.errors`.
+The current template is `app/templates/pages/loaddata.html`. It renders the
+fields directly and shows form errors and success messages beneath the form.
 
-**3. Render it in a template (`app/templates/pages/post_form.html`)**, extending `base.html` per
-[`docs/templates.md`](templates.md):
+That template currently uses a plain HTML form rather than a `FlaskForm`
+helper block.
 
-```html
-{% extends "base.html" %}
-{% block content %}
-<form method="post" novalidate>
-    {{ form.csrf_token }}
+## CSRF status
 
-    {{ form.slug.label }} {{ form.slug() }}
-    {% for error in form.slug.errors %}<p class="text-red-600">{{ error }}</p>{% endfor %}
+CSRF protection is **not enabled yet** in this codebase. `flask-wtf` is a
+dependency, but `CSRFProtect` is not initialized in `app/extensions.py` or
+`app/__init__.py`.
 
-    {{ form.title.label }} {{ form.title() }}
-    {% for error in form.title.errors %}<p class="text-red-600">{{ error }}</p>{% endfor %}
+That means:
 
-    {{ form.body.label }} {{ form.body() }}
-    {% for error in form.body.errors %}<p class="text-red-600">{{ error }}</p>{% endfor %}
-
-    <button type="submit">Save</button>
-</form>
-{% endblock %}
-```
-
-`{{ form.csrf_token }}` renders the hidden CSRF input — without it, every `POST` through this form will be
-rejected once `CSRFProtect` is enabled.
-
-## Testing a form-backed route
-
-Following the pattern in [`docs/testing.md`](testing.md) (use the `client` fixture), POST form-encoded data,
-not JSON:
-
-```python
-def test_new_post_creates_page(client):
-    response = client.post(
-        "/post/new",
-        data={"slug": "hello", "title": "Hello", "body": "<p>Hi</p>"},
-        follow_redirects=True,
-    )
-    assert response.status_code == 200
-```
-
-`client.post(data=...)` sends `application/x-www-form-urlencoded`, which is what `FlaskForm` expects. Since
-`TestingConfig` doesn't disable CSRF, the test client still needs a valid token for this to pass once
-`CSRFProtect` is enabled — either fetch the form's `GET` page first and extract the  token, or set
-`WTF_CSRF_ENABLED = False` on `TestingConfig` specifically (common practice: keep CSRF on in dev/production, off
-in tests, since tests already run same-origin and aren't exercising the CSRF threat model).
+- the form currently works without a CSRF token
+- if CSRF is added later, the template will need a hidden token field
+- tests and routes will need to be updated at the same time
 
 ## Common mistakes to avoid
 
-- **Forgetting `csrf.init_app(app)`** — `FlaskForm` will still work, but CSRF tokens won't actually be verified,
-  silently defeating the point.
-- **Forgetting `{{ form.csrf_token }}` in the template** — once CSRF *is* enabled, every submit will fail with
-  a 400 until this is added.
-- **Validating with `form.validate()` alone instead of `validate_on_submit()`** — `validate()` doesn't check the
-  request method, so a `GET` request could accidentally look "submitted" if fields happen to be prefilled.
-- **Re-declaring field constraints that drift from the model.** If `Post.slug` changes its max length, update
-  `PostForm.slug`'s `Length` validator too — nothing keeps them in sync automatically.
+- **Assuming Flask-WTF protection is already active.** It is not.
+- **Forgetting to validate each list item.** `FieldList` validates the items,
+  but your custom validator still needs to be attached to the field.
+- **Treating `request.form` as already clean.** The route still has to strip
+  empty domains and handle invalid data.
+- **Using this old doc as if it described a `PostForm`.** That workflow was
+  part of the previous version of the project and no longer applies.

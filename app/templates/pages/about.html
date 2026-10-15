@@ -3,29 +3,20 @@
 
 {% block page_content %}
 <p class="text-gray-700 leading-relaxed">
-    Flask Basics is an internal Flask application used to give developers
-    some hands-on experience working with Flask, SQLAlchemy, Alembic and Pytest.
+    This is a simple domain-name matching game built with Flask and Tailwind CSS.
+    The game challenges players to match domain names with their corresponding IP addresses.
 </p>
 <p class="text-gray-700 leading-relaxed mt-4">
-    This page is an example of a static page —
-    see <code class="bg-gray-100 px-1 py-0.5 rounded text-sm">docs/adding-routes.md</code>
-    for how to add another one.
+    To play, <a href="/start">go to the start screen</a>, choose the game mode with
+    the toggle, and click Get Question. A question and several answer choices will appear
+    as clickable cards. Pick the card you think is correct, and the app checks your
+    answer through the page’s interactive JavaScript/HTMX flow. The overall goal
+    is to practice recognizing which domains belong to which people and vice versa.
 </p>
-<div class="max-md rounded-lg overflow-hidden shadow-lg bg-white">
-  <div class="p-6">
-    <table class="w-full text-md text-left rtl:text-right text-body mt-10">
-        <caption>Page information</caption>
-        <tbody>
-            <tr class="border-b border-default">
-                <td class="px-6 py-4">Route</td>
-                <td class="px-6 py-4"><code>app.main.routes.about</code></td>
-            </tr>
-            <tr class="border-b border-default">
-                <td class="px-6 py-4">Template</td>
-                <td class="px-6 py-4"><code>app.templates.pages.about</code></td>
-            </tr>
-        </tbody>
-    </table>
-  </div>
-</div>
+<p class="text-gray-700 leading-relaxed mt-4">
+    The app stores people and the domains they own in MongoDB, either by entering
+    them manually through the data form or by loading them from a spreadsheet.
+    Once there is data in the database, the game generates a question that asks
+    you to match a person to a domain or match a domain to its owner.
+</p>
 {% endblock %}
