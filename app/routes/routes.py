@@ -33,7 +33,11 @@ def gather_data():
 def get_partial(view_name):
     datamanager = DataManager()
     tempdata = datamanager.getQuestion(view_name)
-    show_hint = True # current_app.config.get("AI_HINT_ENABLED", False)
+    show_hint = current_app.config.get("AI_HINT_ENABLED", False)
+    if isinstance(show_hint, str):
+        show_hint = show_hint.lower() == "true"
+
+    print(show_hint)
     # Map the URL parameter to the corresponding partial template.
     safe_view_name = os.path.basename("question")
     return render_template(f'partials/{safe_view_name}.html', data=tempdata, show_hint=show_hint)
@@ -41,8 +45,10 @@ def get_partial(view_name):
 @bp.route("/fetch/data")
 def fetch_data():
     data_generator = DataGenerator()
+
+    # Retain ability to show the data that was loaded.
     data_to_display = data_generator.generate_data("external", True)
-    #return render_template('pages/datadisplay.html', data=data_to_display)
+
     return jsonify({
         "success": True,
         "message": "Data has been successfully loaded into database.",
@@ -76,9 +82,6 @@ def load_data():
 
 @bp.route("/validate-field", methods=["POST"])
 def validate_field():
-    # Print everything Flask received in the form body
-    print("Received Form Keys:", list(request.form.keys()))
-    print("Received Form Data:", request.form.to_dict())
 
     form = UserForm(request.form)
     list_name = request.form.get("_list_name")

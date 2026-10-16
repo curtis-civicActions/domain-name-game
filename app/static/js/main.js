@@ -1,5 +1,5 @@
 function handleCardClick(index, answer) {
-    
+
     let cards = document.getElementsByClassName("clickable-card");
     for (const card of cards) {
         if (card.id === ("card-" + answer)) {
@@ -16,8 +16,6 @@ function handleCardClick(index, answer) {
     else {
         document.getElementById("message").innerHTML = "Sorry," + String.fromCodePoint(0x1F622) + "  that is not correct. Don't worry, you'll have more chances.";
     }
-   // let elementId = (name === "viewone") ? "refresh_one" : "refresh_two";
-   // document.getElementById(elementId).visibility = "visible";
 }
 
 function toggleSwitched(element) {

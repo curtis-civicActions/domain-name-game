@@ -19,7 +19,7 @@ class Config:
     ]
 
     # AI hint configuration
-    AI_HINT_ENABLED = os.getenv("AI_HINT_ENABLED", "False")
+    AI_HINT_ENABLED = os.getenv("AI_HINT_ENABLED", "False").lower()
     AI_HINT_PROVIDER = os.getenv("AI_HINT_PROVIDEER", "none") # none| ollama |openai
     AI_HINT_TIMEOUT_SECONDS = int(os.getenv("AI_HINT_TIMEOUT_SECONDS", "15"))
 
