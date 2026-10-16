@@ -18,6 +18,9 @@ dependencies = [
     "mongomock>=4.3.0",
     "WTForms>=3.1.0",
     "Flask-WTF>=1.2.0",
+    "cachetools>=5.0.0",
+    "httpx>=0.28.0",
+    "openai>=1.52.0",
 ]
 
 [dependency-groups]

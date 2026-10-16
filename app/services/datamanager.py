@@ -1,8 +1,12 @@
 import random
+import uuid
+from app.services.question_cache import  question_cache
+
 from app.models.user import User
 
 class DataManager:
     def getQuestion(self, subject="name"):
+        question_cache.clear()
         rawdata = self.__getdata()
         question = self.__formatdata(rawdata, subject)
         return question
@@ -27,13 +31,17 @@ class DataManager:
         if view == "name":
             subject = random_row[0]
             choices = [tup[1] for tup in holdingcell]
-            question = f"Select the domain owned by {subject}"
+            question_str = f"Select the domain owned by {subject}"
         else:
             subject = random_row[1]
             choices = [tup[0] for tup in holdingcell]
-            question = f"Select the owner of domain {subject}"
+            question_str = f"Select the owner of domain {subject}"
 
-        return {"status": True, "subject": subject, "choices": choices, "index": index, "question": question}
+        question_id = uuid.uuid4().hex
+        question = {"question_id": question_id, "subject": subject, "choices": choices, "index": index, "question_str": question_str}
+        question_cache[question_id] = question
+
+        return {"status": True, "question": question}
 
     def insertdata(self, data: dict):
         # Check if this user exists

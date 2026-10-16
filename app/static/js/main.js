@@ -1,7 +1,5 @@
-function handleCardClick(index, answer, name) {
-    console.log("Clicked card index: ", index);
-    console.log("Answer index: ", answer);
-    console.log("Answer index: ", name);
+function handleCardClick(index, answer) {
+    
     let cards = document.getElementsByClassName("clickable-card");
     for (const card of cards) {
         if (card.id === ("card-" + answer)) {
@@ -18,8 +16,8 @@ function handleCardClick(index, answer, name) {
     else {
         document.getElementById("message").innerHTML = "Sorry," + String.fromCodePoint(0x1F622) + "  that is not correct. Don't worry, you'll have more chances.";
     }
-    let elementId = (name === "viewone") ? "refresh_one" : "refresh_two";
-    document.getElementById(elementId).visibility = "visible";
+   // let elementId = (name === "viewone") ? "refresh_one" : "refresh_two";
+   // document.getElementById(elementId).visibility = "visible";
 }
 
 function toggleSwitched(element) {
@@ -125,10 +123,17 @@ function setUpListener(elementId) {
 
 
 document.addEventListener('DOMContentLoaded', function() {
+    const domainField = document.getElementById('domains-0');
+    const container = document.getElementById('domain-fields-container');
+
+    // Only initialize the listener if the domains field exists on the page.
+    if (!domainField || !container) {
+        return;
+    }
+
     // Need to add eventListener to the first domains field
     setUpListener('domains-0');
 
-    const container = document.getElementById('domain-fields-container');
 
     if (container) {
         container.addEventListener('input', function (e) {

@@ -1,9 +1,12 @@
 import os
 from flask import Blueprint, jsonify, request
-from flask import render_template
+from flask import render_template, current_app
 from app.services.datagenerator import DataGenerator
 from app.services.datamanager import DataManager
+from app.services.question_cache import question_cache
+from app.services.aihintservices import AIHintService
 from app.forms import UserForm
+
 
 bp = Blueprint("main", __name__)
 
@@ -30,9 +33,10 @@ def gather_data():
 def get_partial(view_name):
     datamanager = DataManager()
     tempdata = datamanager.getQuestion(view_name)
+    show_hint = True # current_app.config.get("AI_HINT_ENABLED", False)
     # Map the URL parameter to the corresponding partial template.
     safe_view_name = os.path.basename("question")
-    return render_template(f'partials/{safe_view_name}.html', data=tempdata)
+    return render_template(f'partials/{safe_view_name}.html', data=tempdata, show_hint=show_hint)
 
 @bp.route("/fetch/data")
 def fetch_data():
@@ -103,3 +107,15 @@ def validate_field():
         '_element': f"{list_name}-{index}"
     })
     return response_payload
+
+@bp.route("/hint", methods = ["GET","POST"])
+def get_hint():
+    question_id = request.form.get("question_id")
+    question = question_cache.get(question_id)
+
+    if not question_id:
+        return jsonify({"Success": False, "message": "Missing question id."})
+
+    hint_service = AIHintService()
+    hint = hint_service.generate_hint(question)
+    return hint

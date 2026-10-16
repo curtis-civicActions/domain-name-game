@@ -10,13 +10,20 @@
         <p>Sorry! We are having technical difficulties getting another question.</p>
     </div>
 {% else %}
-    <div class="card">
-        <p class="card-text">{{ data.question }}</p>
-    </div>
-    <div class="card-grid">
-        {% for choice in data.choices %}
-            {% set answer = data.index %}
-            <div class="clickable-card" id="card-{{ loop.index0 }}" onclick="handleCardClick({{ loop.index0 }}, {{ answer }}, 'viewone')">
+    <div id="question-wrapper" data-question-id="{{ data.question.question_id }}">
+        <div class="card flex flex-col items-start gap-3 w-full">
+            <p class="card-text">{{ data.question.question_str }}</p>
+            {% if show_hint %}
+            <div class="mt-3">
+            <button  class="mt-2 px-2.5 py-1.5 textxs font-medium rounded border-2 border-line-400 bg-lime-100 text-lime-900 hover:bg-lime-200 transition-colors" hx-post="/hint" hx-vals='js:{question_id: document.querySelector("#question-wrapper").dataset.questionId}'  hx-target="#hint-area" hx-swap="innerHTML" hx-on:htmx:after-request="this.disabled = true; this.hidden = true;"> Get Hint </button>
+            </div>
+            <div id="hint-area" class="mt-3 text-med text-gray-700"></div>
+        {% endif %}
+        </div>
+    <div class="card-grid w-full">
+        {% for choice in data.question.choices %}
+            {% set answer = data.question.index %}
+            <div class="clickable-card" id="card-{{ loop.index0 }}" onclick="handleCardClick({{ loop.index0 }}, {{ answer }})">
                 <h2>{{ choice }}</h2>
             </div>
         {% endfor %}
